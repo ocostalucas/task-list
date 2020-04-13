@@ -19,8 +19,21 @@ class _HomeState extends State<Home> {
   final _toDoController = TextEditingController();
 
   List _toDoList = [];
+  Map<String, dynamic> _lastRemoved;
+  int _lastRemovedPos;
 
-  void _addToDo(){
+  @override
+  void initState() {
+    super.initState();
+
+    _readData().then((data) {
+      setState(() {
+        _toDoList = json.decode(data);
+      });
+    });
+  }
+
+  void _addToDo() {
     setState(() {
       Map<String, dynamic> newToDo = Map();
 
@@ -29,6 +42,7 @@ class _HomeState extends State<Home> {
 
       newToDo["ok"] = false;
       _toDoList.add(newToDo);
+      _saveData();
     });
   }
 
@@ -47,8 +61,8 @@ class _HomeState extends State<Home> {
             child: Row(
               children: <Widget>[
                 Expanded(
-                  child: TextField(
-                  controller: _toDoController,  
+                    child: TextField(
+                  controller: _toDoController,
                   decoration: InputDecoration(
                       labelText: "New task",
                       labelStyle: TextStyle(color: Colors.blueAccent)),
@@ -66,24 +80,64 @@ class _HomeState extends State<Home> {
             child: ListView.builder(
                 padding: EdgeInsets.only(top: 10.0),
                 itemCount: _toDoList.length,
-                itemBuilder: (context, index) {
-                  return CheckboxListTile(
-                    title: Text(_toDoList[index]["title"]),
-                    value: _toDoList[index]["ok"],
-                    secondary: CircleAvatar(
-                        child: Icon(_toDoList[index]["ok"]
-                            ? Icons.check
-                            : Icons.error)),
-                    onChanged: (c) {
-                      setState(() {
-                        _toDoList[index]["ok"] = c;
-                      });
-                    },        
-                  );
-                }),
+                itemBuilder: buildItem),
           )
         ],
       ),
+    );
+  }
+
+  Widget buildItem(BuildContext context, int index) {
+    return Dismissible(
+      key: Key(DateTime.now().millisecondsSinceEpoch.toString()),
+      background: Container(
+        color: Colors.red,
+        child: Align(
+          alignment: Alignment(-0.9, 0.0),
+          child: Icon(
+            Icons.delete,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      direction: DismissDirection.startToEnd,
+      child: CheckboxListTile(
+        title: Text(_toDoList[index]["title"]),
+        value: _toDoList[index]["ok"],
+        secondary: CircleAvatar(
+            child: Icon(_toDoList[index]["ok"] ? Icons.check : Icons.error)),
+        onChanged: (check) {
+          setState(() {
+            _toDoList[index]["ok"] = check;
+            _saveData();
+          });
+        },
+      ),
+      onDismissed: (direction) {
+        setState(() {
+          _lastRemoved = Map.from(_toDoList[index]);
+          _lastRemovedPos = index;
+          _toDoList.removeAt(index);
+
+          _saveData();
+
+          final snack = SnackBar(
+            content: Text("Task \"${_lastRemoved["title"]}\" removed."),
+            action: SnackBarAction(
+              label: "Undo",
+              onPressed: () {
+                setState(() {
+                  _toDoList.insert(_lastRemovedPos, _lastRemoved);
+                  _saveData();
+                });
+              },
+            ),
+            duration: Duration(seconds: 2),
+          );
+
+          Scaffold.of(context).showSnackBar(snack);
+        });
+      },
     );
   }
 
